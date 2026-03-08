@@ -79,6 +79,10 @@ type UploadedPhoto = {
   url: string
 }
 
+type StorageListItem = {
+  name: string
+}
+
 type Confirmacion = {
   id: number
   timestamp: string
@@ -452,12 +456,12 @@ function App() {
       const files =
         data
           ?.filter(
-            (item) =>
+            (item: StorageListItem) =>
               Boolean(item.name) &&
               !item.name.endsWith("/") &&
               /\.(jpe?g|png|webp)$/i.test(item.name),
           )
-          .map((item) => {
+          .map((item: StorageListItem) => {
             const { data: publicUrlData } = client.storage
               .from(supabaseBucket)
               .getPublicUrl(item.name)
