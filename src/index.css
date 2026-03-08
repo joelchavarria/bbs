@@ -1,0 +1,74 @@
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Great+Vibes&family=Nunito:wght@400;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 196 100% 98%;
+    --foreground: 206 45% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 206 45% 20%;
+    --primary: 204 78% 60%;
+    --primary-foreground: 210 100% 99%;
+    --secondary: 197 90% 90%;
+    --secondary-foreground: 206 45% 20%;
+    --muted: 48 100% 90%;
+    --muted-foreground: 206 30% 33%;
+    --accent: 50 97% 75%;
+    --accent-foreground: 40 90% 25%;
+    --border: 201 68% 84%;
+    --ring: 204 78% 60%;
+    --radius: 1.25rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply m-0 bg-background font-sans text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at 8% 8%, rgba(126, 208, 249, 0.38), transparent 26%),
+      radial-gradient(circle at 90% 12%, rgba(255, 239, 146, 0.42), transparent 25%),
+      linear-gradient(180deg, #f6fcff 0%, #ecf7ff 100%);
+  }
+}
+
+@layer components {
+  .glass-card {
+    backdrop-filter: blur(6px);
+    background: linear-gradient(125deg, rgba(255, 255, 255, 0.95), rgba(241, 250, 255, 0.85));
+  }
+
+  .bubble-orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(1px);
+    opacity: 0.42;
+    animation: bubble-drift 14s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+}
+
+@keyframes bubble-drift {
+  0% {
+    transform: translateY(0px) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-18px) scale(1.06);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(0px) scale(1);
+    opacity: 0.3;
+  }
+}

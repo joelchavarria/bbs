@@ -1,0 +1,62 @@
+[
+  {
+    "familia": "FAMILIA ESPINOZA VELÁSQUEZ",
+    "miembros": ["PAMELA VELÁSQUEZ", "SAÚL ESPINOZA"]
+  },
+  { "nombre": "ALICIA CANO" },
+  { "nombre": "FÉLIX MARÍN" },
+  { "nombre": "GLORIA MARENCO" },
+  {
+    "familia": "FAMILIA PÉREZ BLANDÓN",
+    "miembros": ["MARÍA JOSÉ PÉREZ", "MARTHA BLANDÓN"]
+  },
+  {
+    "familia": "FAMILIA PERALTA VANEGAS",
+    "miembros": ["BRUNILDA VANEGAS", "FERNANDA PERALTA"]
+  },
+  { "nombre": "SUSAN MAIRENA" },
+  { "nombre": "GABRIELA PÉREZ" },
+  { "nombre": "PERLA MORALES" },
+  { "nombre": "JULISSA GONZÁLEZ" },
+  {
+    "familia": "FAMILIA SILVA ESPINOZA",
+    "miembros": ["ÁLVARO SILVA", "GRETCHING ESPINOZA"]
+  },
+  {
+    "familia": "FAMILIA CHAVARRIA JAÉN",
+    "miembros": ["ALMA JAÉN", "ÁLVARO CHAVARRIA JAÉN", "LUZ CHAVARRIA JAÉN"]
+  },
+  { "nombre": "ITZAIK MORALES" },
+  {
+    "familia": "FAMILIA CHAVARRIA MONTIEL",
+    "miembros": ["AMALIA MONTIEL", "DOMINGO CHAVARRIA ORTEGA", "ROSA ELENA CHAVARRIA"]
+  },
+  {
+    "familia": "FAMILIA VEGA DOLMUS",
+    "miembros": ["DARCY VEGA", "IAN VEGA", "FERNANDA DOLMUS"]
+  },
+  { "nombre": "SOFÍA VELÁZQUEZ" },
+  { "nombre": "KRISTHEL ESPINOZA" },
+  { "nombre": "STEFFANY BRENES" },
+  { "nombre": "KARELY ESTRADA" },
+  { "nombre": "DEYANIRA TORUÑO" },
+  { "nombre": "JEFERSON MARÍN" },
+  { "nombre": "DEYBI LÓPEZ" },
+  { "nombre": "KIMBERLY PÉREZ" },
+  { "nombre": "DINA MARTÍNEZ" },
+  { "nombre": "FRANCISCO SOZA" },
+  { "nombre": "HARVIN GARCÍA" },
+  { "nombre": "DIEGO NOGUERA" },
+  { "nombre": "ROBERTO ZAMURIA" },
+  { "nombre": "EMPERATRIZ VANEGAS" },
+  {
+    "familia": "FAMILIA VANEGAS PAVÓN",
+    "miembros": ["ROLANDO VANEGAS", "YOLANDA PAVÓN", "ANDREA VANEGAS"]
+  },
+  { "nombre": "BEMILDA VANEGAS" },
+  {
+    "familia": "FAMILIA CHAVARRIA ZAMURIA",
+    "miembros": ["GUADALUPE ZAMURIA", "JOEL CHAVARRIA", "LUCAS CHAVARRIA ZAMURIA"]
+  },
+  { "nombre": "RINA ROMÁN" }
+]
