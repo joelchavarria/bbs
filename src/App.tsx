@@ -212,16 +212,7 @@ function App() {
     setInviteMessage("")
   }, [selected])
 
-  const dateLabel = useMemo(
-    () =>
-      EVENT_START.toLocaleDateString("es-NI", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-    [],
-  )
+  const dateLabel = "Domingo, 3 de Mayo 2026"
 
   const timeLabel = useMemo(() => {
     const start = EVENT_START.toLocaleTimeString("es-NI", {
@@ -397,18 +388,28 @@ function App() {
       context.drawImage(image, 0, 0)
 
       const isFamily = selected.familia !== "INVITADO INDIVIDUAL"
-      const namesText = isFamily
-        ? selected.miembrosFamilia.join(" • ")
-        : selected.nombre
+      let textLines: string[] = isFamily ? [...selected.miembrosFamilia] : [selected.nombre]
 
-      const boxWidth = canvas.width * 0.84
+      const boxWidth = canvas.width * 0.72
       const boxX = (canvas.width - boxWidth) / 2
       const boxY = canvas.height * 0.57
-      const radius = 24
+      const radius = 18
       context.textAlign = "center"
       context.textBaseline = "middle"
-      context.font = `700 ${Math.max(18, Math.floor(canvas.width * 0.027))}px "Nunito", sans-serif`
-      const textLines = wrapText(context, namesText, boxWidth * 0.88).slice(0, 4)
+      context.font = `700 ${Math.max(16, Math.floor(canvas.width * 0.024))}px "Nunito", sans-serif`
+      if (isFamily && selected.miembrosFamilia.length > 2) {
+        const grouped: string[] = []
+        for (let index = 0; index < selected.miembrosFamilia.length; index += 2) {
+          grouped.push(
+            selected.miembrosFamilia.slice(index, index + 2).join(" • "),
+          )
+        }
+        textLines = grouped
+      }
+
+      textLines = textLines
+        .flatMap((line) => wrapText(context, line, boxWidth * 0.88))
+        .slice(0, 4)
       const lineHeight = Math.max(22, Math.floor(canvas.width * 0.03))
       const verticalPadding = Math.max(22, Math.floor(canvas.height * 0.014))
       const boxHeight = textLines.length * lineHeight + verticalPadding * 2
@@ -439,7 +440,7 @@ function App() {
         context.fillText(line, canvas.width / 2, textStartY + index * lineHeight)
       })
 
-      const safeName = namesText
+      const safeName = textLines.join("-")
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -587,7 +588,7 @@ function App() {
             <div className="relative z-10 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
               <div>
                 <Badge className="mb-4 w-fit">Baby Shower</Badge>
-                <h1 className="font-script whitespace-nowrap text-[clamp(1rem,6.2vw,3rem)] leading-none tracking-[0.01em] text-foreground">
+                <h1 className="font-script whitespace-nowrap text-[clamp(1rem,6.2vw,3rem)] leading-none tracking-[0.01em] text-sky-500">
                   Lucas Joel Chavarría Zamuria
                 </h1>
                 <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground sm:mt-4 sm:text-lg">
@@ -661,7 +662,7 @@ function App() {
                 },
                 {
                   title: "Vestimenta",
-                  detail: "Código de vestimenta: blanco",
+                  detail: "Código de vestimenta: Blanco",
                   icon: Shirt,
                 },
               ].map((item) => (
