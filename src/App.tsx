@@ -1605,8 +1605,7 @@ function App() {
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Este apartado para tomar y subir fotos del evento estará disponible
-                    hasta ese día, para evitar que por el momento se cargue contenido
-                    innecesario.
+                    hasta ese día.
                   </p>
                   <div className="mt-4 grid max-w-md grid-cols-3 gap-2 text-center">
                     {[

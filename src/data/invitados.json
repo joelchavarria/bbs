@@ -52,13 +52,24 @@
   { "nombre": "FRANCISCO SOZA" },
   { "nombre": "HARVIN GARCÍA" },
   { "nombre": "DIEGO NOGUERA" },
-  { "nombre": "ROBERTO ZAMURIA" },
+  { "nombre": "ROBERTO ZAMURIA MARTINEZ" },
   { "nombre": "EMPERATRIZ VANEGAS" },
   {
     "familia": "FAMILIA VANEGAS PAVÓN",
     "miembros": ["ROLANDO VANEGAS", "YOLANDA PAVÓN", "ANDREA VANEGAS"]
   },
   { "nombre": "BEMILDA VANEGAS" },
+  { "nombre": "ROBERTO ZAMURIA VENAGEAS" },
+  {
+    "familia": "FAMILIA ALVEY ZAMURIA",
+    "miembros": [
+      "SILVIA ZAMURIA",
+      "ELENA ALVEY ZAMURIA",
+      "JACOB ALVEY ZAMURIA",
+      "JOSEPH ALVEY ZAMURIA"
+    ]
+  },
+
   {
     "familia": "FAMILIA CHAVARRIA ZAMURIA",
     "miembros": [
@@ -69,7 +80,7 @@
   },
   { "nombre": "RINA ROMÁN" },
   { "nombre": "ANA GABRIELA ROCHA" },
-{
+  {
     "familia": "FAMILIA GARCÍA SEVILLA",
     "miembros": ["LAURA GARCÍA SEVILLA", "ISABELLA GARCÍA"]
   },
