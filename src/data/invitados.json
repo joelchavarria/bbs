@@ -30,7 +30,11 @@
   { "nombre": "ITZAIK MORALES" },
   {
     "familia": "FAMILIA CHAVARRIA MONTIEL",
-    "miembros": ["AMALIA MONTIEL", "DOMINGO CHAVARRIA ORTEGA", "ROSA ELENA CHAVARRIA"]
+    "miembros": [
+      "AMALIA MONTIEL",
+      "DOMINGO CHAVARRIA ORTEGA",
+      "ROSA ELENA CHAVARRIA MONTIEL"
+    ]
   },
   {
     "familia": "FAMILIA VEGA DOLMUS",
@@ -57,7 +61,17 @@
   { "nombre": "BEMILDA VANEGAS" },
   {
     "familia": "FAMILIA CHAVARRIA ZAMURIA",
-    "miembros": ["GUADALUPE ZAMURIA", "JOEL CHAVARRIA", "LUCAS CHAVARRIA ZAMURIA"]
+    "miembros": [
+      "GUADALUPE ZAMURIA",
+      "JOEL CHAVARRIA",
+      "LUCAS CHAVARRIA ZAMURIA"
+    ]
   },
-  { "nombre": "RINA ROMÁN" }
+  { "nombre": "RINA ROMÁN" },
+  { "nombre": "ANA GABRIELA ROCHA" },
+{
+    "familia": "FAMILIA GARCÍA SEVILLA",
+    "miembros": ["LAURA GARCÍA SEVILLA", "ISABELLA GARCÍA"]
+  },
+  { "nombre": "LORENA CASTILLO" }
 ]
