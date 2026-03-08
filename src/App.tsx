@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  Camera,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -7,9 +8,11 @@ import {
   Eye,
   ImageIcon,
   Gift,
+  Lock,
   MapPin,
   Search,
   Shirt,
+  Upload,
   Users,
 } from "lucide-react"
 import { type FormEvent, useEffect, useMemo, useState } from "react"
@@ -18,15 +21,21 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import invitados from "@/data/invitados.json"
+import { supabase, supabaseBucket } from "@/lib/supabase"
 
 const EVENT_START = new Date("2026-05-03T10:00:00-06:00")
 const EVENT_END = new Date("2026-05-03T13:00:00-06:00")
+const PHOTOS_OPEN_AT = new Date("2026-05-03T00:00:00-06:00")
 const RSVP_EMAIL = "joelchavarria308@gmail.com"
 const MAPS_QUERY = "https://maps.app.goo.gl/p9Pe2d78kaNzUqReA"
 const MAPS_EMBED =
   "https://www.google.com/maps?q=La+Guacamaya+Granada+La+Calzada&output=embed"
 const INVITE_TEMPLATE = "/venue/INVIT.jpeg"
 const PAGE_STORAGE_KEY = "bbs_current_page"
+const ADMIN_PATH = "/confirmacionesbbs"
+const ADMIN_PIN = "0126"
+const ADMIN_UNLOCK_KEY = "bbs_admin_unlocked"
+const NAV_PAGES = ["Inicio", "Ubicación", "RSVP", "Fotos"]
 const VENUE_PHOTOS = [
   "https://scontent.fmga3-1.fna.fbcdn.net/v/t39.30808-6/546595088_1092996142956515_5799627265149833480_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=dd6889&_nc_ohc=igEsnQD_QQYQ7kNvwG8b2ew&_nc_oc=AdkRMOaWXRZ3D9Fs1xrCuBnsWMqir6CXgg6FVnMVRA6TQOahAj66Bt1KG5qBhCDI1GHIRbDvRIfNH8fXoP2L0hBD&_nc_zt=23&_nc_ht=scontent.fmga3-1.fna&_nc_gid=vKx_u-0zGAOZfuGKxdq92Q&_nc_ss=8&oh=00_Afy4bEWWDW2_6YEWgnQdVQjotVnoKK_tuybrAXq37C0jQA&oe=69B296CA",
   "/venue/foto-2.svg",
@@ -62,6 +71,26 @@ type RsvpPayload = {
   creadoEn: string
   userAgent: string
 }
+const RSVP_TABLE =
+  (import.meta.env.VITE_RSVP_TABLE as string | undefined) ?? "confirmaciones"
+
+type UploadedPhoto = {
+  name: string
+  url: string
+}
+
+type Confirmacion = {
+  id: number
+  timestamp: string
+  nombre: string
+  familia: string
+  asistencia: "si" | "no"
+  personas: number
+  mensaje: string
+  cupo_familia: number | null
+  miembros_familia: string | null
+  confirmado_por: string | null
+}
 
 function normalize(value: string) {
   return value
@@ -84,19 +113,41 @@ function getCountdown() {
   return { days, hours, minutes, finished: false }
 }
 
+function getPhotosCountdown() {
+  const diff = PHOTOS_OPEN_AT.getTime() - Date.now()
+
+  if (diff <= 0) {
+    return { days: 0, hours: 0, minutes: 0, unlocked: true }
+  }
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
+  const minutes = Math.floor((diff / (1000 * 60)) % 60)
+
+  return { days, hours, minutes, unlocked: false }
+}
+
 function isFamiliaInvitada(entry: InvitadoRaw): entry is FamiliaInvitada {
   return "familia" in entry && "miembros" in entry
 }
 
 function App() {
+  const isAdminRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname.toLowerCase() === ADMIN_PATH
   const [countdown, setCountdown] = useState(getCountdown)
+  const [photosCountdown, setPhotosCountdown] = useState(getPhotosCountdown)
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window === "undefined") {
       return 0
     }
     const savedPage = window.localStorage.getItem(PAGE_STORAGE_KEY)
     const parsedPage = Number(savedPage)
-    if (Number.isInteger(parsedPage) && parsedPage >= 0 && parsedPage <= 2) {
+    if (
+      Number.isInteger(parsedPage) &&
+      parsedPage >= 0 &&
+      parsedPage <= NAV_PAGES.length - 1
+    ) {
       return parsedPage
     }
     return 0
@@ -115,6 +166,23 @@ function App() {
   const [inviteMessage, setInviteMessage] = useState("")
   const [invitePreview, setInvitePreview] = useState("")
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false)
+  const [photoUploaderName, setPhotoUploaderName] = useState("")
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoStatus, setPhotoStatus] = useState("")
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const [galleryPhotos, setGalleryPhotos] = useState<UploadedPhoto[]>([])
+  const [isLoadingGallery, setIsLoadingGallery] = useState(false)
+  const [adminPinInput, setAdminPinInput] = useState("")
+  const [adminError, setAdminError] = useState("")
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => {
+    if (typeof window === "undefined") {
+      return false
+    }
+    return window.sessionStorage.getItem(ADMIN_UNLOCK_KEY) === "1"
+  })
+  const [isLoadingConfirmaciones, setIsLoadingConfirmaciones] = useState(false)
+  const [confirmacionesError, setConfirmacionesError] = useState("")
+  const [confirmaciones, setConfirmaciones] = useState<Confirmacion[]>([])
 
   const invitadosPlanos = useMemo(() => {
     const data = invitados as InvitadoRaw[]
@@ -179,11 +247,19 @@ function App() {
     [],
   )
 
-  const pages = ["Inicio", "Ubicación", "RSVP"]
+  const pages = NAV_PAGES
   const lastPage = pages.length - 1
 
   useEffect(() => {
     const timer = window.setInterval(() => setCountdown(getCountdown()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setPhotosCountdown(getPhotosCountdown()),
+      30_000,
+    )
     return () => window.clearInterval(timer)
   }, [])
 
@@ -206,11 +282,6 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(PAGE_STORAGE_KEY, String(currentPage))
   }, [currentPage])
-
-  useEffect(() => {
-    setInvitePreview("")
-    setInviteMessage("")
-  }, [selected])
 
   const dateLabel = "Domingo, 3 de Mayo 2026"
 
@@ -253,6 +324,18 @@ function App() {
     setHighlightedGuestIndex(0)
   }, [filteredGuests.length, shouldShowSearchState])
 
+  useEffect(() => {
+    if (currentPage === 3) {
+      void loadGalleryPhotos()
+    }
+  }, [currentPage])
+
+  useEffect(() => {
+    if (isAdminRoute && isAdminUnlocked) {
+      void loadConfirmaciones()
+    }
+  }, [isAdminRoute, isAdminUnlocked])
+
   const canSubmit = Boolean(selected) && (attendance === "no" || people > 0)
 
   const emailHref = useMemo(() => {
@@ -273,10 +356,24 @@ function App() {
     return `mailto:${RSVP_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   }, [attendance, message, people, selected])
 
+  const confirmacionesSi = useMemo(
+    () => confirmaciones.filter((row) => row.asistencia === "si"),
+    [confirmaciones],
+  )
+  const confirmacionesNo = useMemo(
+    () => confirmaciones.filter((row) => row.asistencia === "no"),
+    [confirmaciones],
+  )
+
   function goToPage(index: number) {
     const safeIndex = Math.max(0, Math.min(lastPage, index))
     setCurrentPage(safeIndex)
     window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  function clearInviteArtifacts() {
+    setInvitePreview("")
+    setInviteMessage("")
   }
 
   function selectGuest(guest: Invitado) {
@@ -284,6 +381,153 @@ function App() {
     setSearch(guest.nombre)
     setPeople(1)
     setHighlightedGuestIndex(0)
+    clearInviteArtifacts()
+  }
+
+  async function loadConfirmaciones() {
+    if (!supabase) {
+      setConfirmacionesError("Supabase no está configurado en este proyecto.")
+      return
+    }
+
+    setIsLoadingConfirmaciones(true)
+    setConfirmacionesError("")
+    try {
+      const { data, error } = await supabase
+        .from(RSVP_TABLE)
+        .select(
+          "id,timestamp,nombre,familia,asistencia,personas,mensaje,cupo_familia,miembros_familia,confirmado_por",
+        )
+        .order("timestamp", { ascending: false })
+        .limit(300)
+
+      if (error) {
+        throw error
+      }
+
+      setConfirmaciones((data as Confirmacion[] | null) ?? [])
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Error desconocido"
+      setConfirmacionesError(`No se pudieron cargar las confirmaciones. ${detail}`)
+    } finally {
+      setIsLoadingConfirmaciones(false)
+    }
+  }
+
+  function handleAdminUnlock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (adminPinInput !== ADMIN_PIN) {
+      setAdminError("PIN incorrecto.")
+      return
+    }
+    setAdminError("")
+    setIsAdminUnlocked(true)
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(ADMIN_UNLOCK_KEY, "1")
+    }
+  }
+
+  async function loadGalleryPhotos() {
+    if (!supabase) {
+      setPhotoStatus(
+        "Falta configuración de Supabase. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.",
+      )
+      return
+    }
+    const client = supabase
+
+    setIsLoadingGallery(true)
+    try {
+      const { data, error } = await client.storage
+        .from(supabaseBucket)
+        .list(undefined, {
+          limit: 60,
+          sortBy: { column: "created_at", order: "desc" },
+        })
+
+      if (error) {
+        throw error
+      }
+
+      const files =
+        data
+          ?.filter(
+            (item) =>
+              Boolean(item.name) &&
+              !item.name.endsWith("/") &&
+              /\.(jpe?g|png|webp)$/i.test(item.name),
+          )
+          .map((item) => {
+            const { data: publicUrlData } = client.storage
+              .from(supabaseBucket)
+              .getPublicUrl(item.name)
+            return { name: item.name, url: publicUrlData.publicUrl }
+          }) ?? []
+
+      setGalleryPhotos(files)
+    } catch {
+      setPhotoStatus("No se pudo cargar la galería en este momento.")
+    } finally {
+      setIsLoadingGallery(false)
+    }
+  }
+
+  async function handleUploadPhoto(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!supabase) {
+      setPhotoStatus(
+        "Falta configuración de Supabase. Agrega VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.",
+      )
+      return
+    }
+    const client = supabase
+
+    if (!photoFile) {
+      setPhotoStatus("Selecciona una foto para subir.")
+      return
+    }
+
+    if (!photoUploaderName.trim()) {
+      setPhotoStatus("Escribe tu nombre antes de subir la foto.")
+      return
+    }
+
+    setIsUploadingPhoto(true)
+    setPhotoStatus("")
+    try {
+      const safeName = photoUploaderName
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+      const ext = photoFile.name.split(".").pop()?.toLowerCase() ?? "jpg"
+      const filePath = `${Date.now()}-${safeName || "invitado"}.${ext}`
+
+      const { error } = await client.storage
+        .from(supabaseBucket)
+        .upload(filePath, photoFile, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: photoFile.type,
+        })
+
+      if (error) {
+        throw error
+      }
+
+      setPhotoStatus("Foto subida correctamente. ¡Gracias por compartir!")
+      setPhotoFile(null)
+      await loadGalleryPhotos()
+    } catch {
+      setPhotoStatus(
+        "No se pudo subir la foto. Verifica tamaño, formato y políticas del bucket.",
+      )
+    } finally {
+      setIsUploadingPhoto(false)
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -307,27 +551,48 @@ function App() {
       creadoEn: new Date().toISOString(),
       userAgent: navigator.userAgent,
     }
-
     try {
-      const webhookUrl = import.meta.env.VITE_RSVP_WEBHOOK
-      if (!webhookUrl) {
-        throw new Error("Webhook no configurado")
+      if (!supabase) {
+        throw new Error("Supabase no configurado")
+      }
+      const groupKey = normalize(
+        selected.familia === "INVITADO INDIVIDUAL"
+          ? `individual:${selected.nombre}`
+          : `familia:${selected.familia}`,
+      )
+      const { error } = await supabase.from(RSVP_TABLE).upsert({
+        grupo_key: groupKey,
+        timestamp: payload.creadoEn,
+        invitado_id: payload.invitadoId,
+        nombre: payload.nombre,
+        familia: payload.familia,
+        confirmado_por: payload.nombre,
+        asistencia: payload.asistencia,
+        personas: payload.personas,
+        mensaje: payload.mensaje,
+        cupo_familia: selected.invitados,
+        miembros_familia: selected.miembrosFamilia.join(" | "),
+        origen: "web-baby-shower",
+        ip: "",
+        user_agent: payload.userAgent,
+      }, { onConflict: "grupo_key" })
+      if (error) {
+        throw error
       }
 
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
       setSubmitMessage(
-        "Reserva guardada en Google Sheets correctamente.",
+        "Reserva guardada correctamente.",
       )
       setSubmitStatus("success")
       setMessage("")
-    } catch {
+    } catch (error) {
+      const isMissingSupabase =
+        error instanceof Error && error.message.includes("Supabase no configurado")
+      const detail = error instanceof Error ? ` Detalle: ${error.message}` : ""
       setSubmitMessage(
-        "No se pudo guardar. Verifica VITE_RSVP_WEBHOOK y permisos del Apps Script.",
+        isMissingSupabase
+          ? "Falta configurar Supabase para guardar confirmaciones."
+          : `No se pudo guardar la reserva en este momento.${detail}`,
       )
       setSubmitStatus("error")
     } finally {
@@ -496,13 +761,256 @@ function App() {
     }
   }
 
+  if (isAdminRoute) {
+    return (
+      <main className="relative overflow-hidden px-3 py-6 sm:px-6 sm:py-10 lg:px-10">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-6">
+          <section className="glass-card rounded-3xl border border-white/80 p-4 shadow-balloon sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Badge>Panel privado</Badge>
+                <h1 className="mt-2 font-display text-2xl text-foreground sm:text-3xl">
+                  Confirmaciones del Baby Shower
+                </h1>
+              </div>
+              {isAdminUnlocked && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setIsAdminUnlocked(false)
+                    setAdminPinInput("")
+                    if (typeof window !== "undefined") {
+                      window.sessionStorage.removeItem(ADMIN_UNLOCK_KEY)
+                    }
+                  }}
+                >
+                  Cerrar panel
+                </Button>
+              )}
+            </div>
+          </section>
+
+          {!isAdminUnlocked ? (
+            <Card className="glass-card border-white/85">
+              <CardContent className="p-5 sm:p-7">
+                <div className="mb-3 flex items-center gap-2">
+                  <Lock className="h-5 w-5 text-primary" />
+                  <h2 className="font-display text-2xl">Acceso con PIN</h2>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ingresa el PIN para ver las confirmaciones.
+                </p>
+                <form onSubmit={handleAdminUnlock} className="mt-4 flex flex-wrap gap-2">
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={adminPinInput}
+                    onChange={(event) => setAdminPinInput(event.target.value)}
+                    placeholder="PIN de 4 dígitos"
+                    className="h-11 rounded-2xl border bg-white/90 px-3 text-sm outline-none transition focus:border-primary"
+                  />
+                  <Button type="submit">Entrar</Button>
+                </form>
+                {adminError && (
+                  <p className="mt-3 rounded-xl bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-700">
+                    {adminError}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                      Total
+                    </p>
+                    <p className="mt-1 font-display text-3xl text-primary">
+                      {confirmaciones.length}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                      Sí asistirán
+                    </p>
+                    <p className="mt-1 font-display text-3xl text-emerald-600">
+                      {confirmacionesSi.length}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                      No asistirán
+                    </p>
+                    <p className="mt-1 font-display text-3xl text-rose-600">
+                      {confirmacionesNo.length}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                      Personas confirmadas
+                    </p>
+                    <p className="mt-1 font-display text-3xl text-primary">
+                      {confirmacionesSi.reduce((sum, row) => sum + (row.personas || 0), 0)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </section>
+
+              <section className="grid gap-4 lg:grid-cols-2">
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-5">
+                    <p className="text-sm font-bold uppercase tracking-[0.14em] text-emerald-600">
+                      Sí irán
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {confirmacionesSi.map((row) => (
+                        <div key={row.id} className="rounded-xl border border-emerald-200 bg-white/85 p-3">
+                          <p className="text-sm font-semibold">{row.nombre}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {row.familia || "Sin familia"} · Confirmados: {row.personas}
+                            {row.cupo_familia ? `/${row.cupo_familia}` : ""}
+                          </p>
+                          {row.miembros_familia && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Integrantes: {row.miembros_familia.split(" | ").join(" • ")}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      {confirmacionesSi.length === 0 && (
+                        <p className="text-sm text-muted-foreground">Aún no hay confirmaciones en “Sí”.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-5">
+                    <p className="text-sm font-bold uppercase tracking-[0.14em] text-rose-600">
+                      No irán
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {confirmacionesNo.map((row) => (
+                        <div key={row.id} className="rounded-xl border border-rose-200 bg-white/85 p-3">
+                          <p className="text-sm font-semibold">{row.nombre}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {row.familia || "Sin familia"}
+                          </p>
+                          {row.miembros_familia && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Integrantes: {row.miembros_familia.split(" | ").join(" • ")}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      {confirmacionesNo.length === 0 && (
+                        <p className="text-sm text-muted-foreground">Aún no hay confirmaciones en “No”.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              <Card className="glass-card border-white/85">
+                <CardContent className="p-5 sm:p-6">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                      Matriz de confirmaciones
+                    </p>
+                    <Button
+                      variant="secondary"
+                      onClick={() => void loadConfirmaciones()}
+                      disabled={isLoadingConfirmaciones}
+                    >
+                      {isLoadingConfirmaciones ? "Actualizando..." : "Actualizar"}
+                    </Button>
+                  </div>
+                  {confirmacionesError && (
+                    <p className="mb-3 rounded-xl bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-700">
+                      {confirmacionesError}
+                    </p>
+                  )}
+                  <div className="overflow-x-auto rounded-2xl border border-border/70 bg-white/85">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="bg-secondary/70 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2">Nombre</th>
+                          <th className="px-3 py-2">Familia</th>
+                          <th className="px-3 py-2">Asistencia</th>
+                          <th className="px-3 py-2">Personas</th>
+                          <th className="px-3 py-2">Cupo</th>
+                          <th className="px-3 py-2">Confirmó</th>
+                          <th className="px-3 py-2">Integrantes</th>
+                          <th className="px-3 py-2">Fecha</th>
+                          <th className="px-3 py-2">Mensaje</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {confirmaciones.map((row) => (
+                          <tr key={row.id} className="border-t border-border/60">
+                            <td className="px-3 py-2 font-semibold">{row.nombre}</td>
+                            <td className="px-3 py-2">{row.familia || "-"}</td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs font-bold ${
+                                  row.asistencia === "si"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-rose-100 text-rose-700"
+                                }`}
+                              >
+                                {row.asistencia === "si" ? "Sí" : "No"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">{row.personas}</td>
+                            <td className="px-3 py-2">{row.cupo_familia ?? "-"}</td>
+                            <td className="px-3 py-2">{row.confirmado_por ?? row.nombre}</td>
+                            <td className="px-3 py-2">
+                              {row.miembros_familia
+                                ? row.miembros_familia.split(" | ").join(", ")
+                                : "-"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {new Date(row.timestamp).toLocaleString("es-NI")}
+                            </td>
+                            <td className="px-3 py-2">{row.mensaje || "-"}</td>
+                          </tr>
+                        ))}
+                        {confirmaciones.length === 0 && (
+                          <tr>
+                            <td className="px-3 py-4 text-muted-foreground" colSpan={9}>
+                              {isLoadingConfirmaciones
+                                ? "Cargando confirmaciones..."
+                                : "No hay registros todavía."}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="relative overflow-hidden px-3 py-6 sm:px-6 sm:py-10 lg:px-10">
       <div className="mx-auto relative flex w-full max-w-7xl flex-col gap-4 sm:gap-6 lg:gap-8">
         <div className="pointer-events-none absolute inset-0 z-0 hidden md:block">
-          {backgroundBubbles.map((bubble, index) => (
+          {backgroundBubbles.map((bubble) => (
             <span
-              key={`bubble-${index}`}
+              key={`${bubble.left}-${bubble.top}-${bubble.size}`}
               className="bubble-orb"
               style={{
                 left: bubble.left,
@@ -516,9 +1024,9 @@ function App() {
           ))}
         </div>
         <div className="pointer-events-none absolute inset-0 z-0 hidden md:block">
-          {floatingChicks.map((item, index) => (
+          {floatingChicks.map((item) => (
             <span
-              key={`${item.icon}-${index}`}
+              key={`${item.icon}-${item.x}-${item.y}`}
               className="absolute animate-float opacity-70"
               style={{
                 left: item.x,
@@ -810,6 +1318,7 @@ function App() {
                       setSearch(event.target.value)
                       setSelected(null)
                       setHighlightedGuestIndex(0)
+                      clearInviteArtifacts()
                     }}
                     onKeyDown={(event) => {
                       if (!shouldShowSearchState || filteredGuests.length === 0) {
@@ -1059,11 +1568,7 @@ function App() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    La reserva se envía solo a Google Sheets mediante
-                    <code className="mx-1 rounded bg-secondary px-1 py-0.5">
-                      VITE_RSVP_WEBHOOK
-                    </code>
-                    (Apps Script Web App).
+                    Tu confirmación se guarda directamente en nuestra base de datos.
                   </p>
                   {submitMessage && (
                     <p
@@ -1079,6 +1584,148 @@ function App() {
                 </form>
               </CardContent>
             </Card>
+          </section>
+        )}
+
+        {currentPage === 3 && (
+          <section className="relative z-10 grid gap-4">
+            {!photosCountdown.unlocked ? (
+              <Card className="glass-card border-white/85">
+                <CardContent className="p-5 sm:p-7">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Lock className="h-5 w-5 text-primary" />
+                    <h2 className="font-display text-2xl">Fotos bloqueadas</h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Esta sección se habilita el domingo 03 de mayo de 2026 a las 12:00 a. m.
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Este apartado para tomar y subir fotos del evento estará disponible
+                    hasta ese día, para evitar que por el momento se cargue contenido
+                    innecesario.
+                  </p>
+                  <div className="mt-4 grid max-w-md grid-cols-3 gap-2 text-center">
+                    {[
+                      { label: "Días", value: photosCountdown.days },
+                      { label: "Horas", value: photosCountdown.hours },
+                      { label: "Min", value: photosCountdown.minutes },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-2xl bg-white/80 py-3 shadow-sm"
+                      >
+                        <p className="font-display text-2xl text-primary sm:text-3xl">
+                          {item.value}
+                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground sm:text-xs">
+                          {item.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-5 sm:p-7">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Camera className="h-5 w-5 text-primary" />
+                      <h2 className="font-display text-2xl">Comparte tus fotos</h2>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Sube una foto desde tu galería para recordar este día tan especial.
+                    </p>
+
+                    <form onSubmit={handleUploadPhoto} className="mt-4 grid gap-3">
+                      <div>
+                        <label
+                          htmlFor="photo-uploader-name"
+                          className="mb-2 block text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground"
+                        >
+                          Tu nombre
+                        </label>
+                        <input
+                          id="photo-uploader-name"
+                          type="text"
+                          value={photoUploaderName}
+                          onChange={(event) => setPhotoUploaderName(event.target.value)}
+                          placeholder="Ejemplo: Pamela Velásquez"
+                          className="h-11 w-full rounded-2xl border bg-white/90 px-3 text-sm outline-none transition focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="photo-file"
+                          className="mb-2 block text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground"
+                        >
+                          Foto (jpg, png, webp)
+                        </label>
+                        <input
+                          id="photo-file"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+                          className="block w-full rounded-2xl border bg-white/90 p-2 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-amber-200 file:px-3 file:py-1 file:font-semibold file:text-amber-900"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="submit" disabled={isUploadingPhoto}>
+                          <Upload className="mr-2 h-4 w-4" />
+                          {isUploadingPhoto ? "Subiendo..." : "Subir foto"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void loadGalleryPhotos()}
+                          disabled={isLoadingGallery}
+                        >
+                          {isLoadingGallery ? "Actualizando..." : "Actualizar galería"}
+                        </Button>
+                      </div>
+                    </form>
+
+                    {photoStatus && (
+                      <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-sm font-semibold text-muted-foreground">
+                        {photoStatus}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="glass-card border-white/85">
+                  <CardContent className="p-5 sm:p-7">
+                    <div className="mb-3 flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                        Galería del Baby Shower
+                      </p>
+                    </div>
+                    {isLoadingGallery ? (
+                      <p className="text-sm text-muted-foreground">Cargando fotos...</p>
+                    ) : galleryPhotos.length === 0 ? (
+                      <div className="h-1" />
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {galleryPhotos.map((photo) => (
+                          <figure
+                            key={photo.name}
+                            className="overflow-hidden rounded-2xl border border-white/80 bg-white/75"
+                          >
+                            <img
+                              src={photo.url}
+                              alt={photo.name}
+                              className="h-28 w-full object-cover sm:h-32 lg:h-36"
+                              loading="lazy"
+                            />
+                          </figure>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </section>
         )}
 
