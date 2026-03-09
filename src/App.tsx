@@ -38,8 +38,6 @@ const ADMIN_UNLOCK_KEY = "bbs_admin_unlocked"
 const NAV_PAGES = ["Inicio", "Ubicación", "RSVP", "Fotos"]
 const VENUE_PHOTOS = [
   "https://scontent.fmga3-1.fna.fbcdn.net/v/t39.30808-6/546595088_1092996142956515_5799627265149833480_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=dd6889&_nc_ohc=igEsnQD_QQYQ7kNvwG8b2ew&_nc_oc=AdkRMOaWXRZ3D9Fs1xrCuBnsWMqir6CXgg6FVnMVRA6TQOahAj66Bt1KG5qBhCDI1GHIRbDvRIfNH8fXoP2L0hBD&_nc_zt=23&_nc_ht=scontent.fmga3-1.fna&_nc_gid=vKx_u-0zGAOZfuGKxdq92Q&_nc_ss=8&oh=00_Afy4bEWWDW2_6YEWgnQdVQjotVnoKK_tuybrAXq37C0jQA&oe=69B296CA",
-  "/venue/foto-2.svg",
-  "/venue/foto-3.svg",
 ]
 
 type Invitado = {
@@ -1281,16 +1279,24 @@ function App() {
                     Fotos del lugar
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  className={`grid gap-3 ${
+                    VENUE_PHOTOS.length > 1 ? "sm:grid-cols-2 lg:grid-cols-3" : ""
+                  }`}
+                >
                   {VENUE_PHOTOS.map((src, index) => (
                     <figure
                       key={src}
-                      className="overflow-hidden rounded-2xl border border-white/80 bg-white/75"
+                      className={`overflow-hidden rounded-2xl border border-white/80 bg-white/75 ${
+                        VENUE_PHOTOS.length === 1 ? "mx-auto w-full max-w-3xl" : ""
+                      }`}
                     >
                       <img
                         src={src}
                         alt={`Foto del lugar ${index + 1}`}
-                        className="h-44 w-full object-cover sm:h-52"
+                        className={`w-full object-cover ${
+                          VENUE_PHOTOS.length === 1 ? "h-64 sm:h-80" : "h-44 sm:h-52"
+                        }`}
                         loading="lazy"
                       />
                     </figure>
