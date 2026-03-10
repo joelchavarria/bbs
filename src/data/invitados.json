@@ -59,7 +59,7 @@
     "miembros": ["ROLANDO VANEGAS", "YOLANDA PAVÓN", "ANDREA VANEGAS"]
   },
   { "nombre": "BEMILDA VANEGAS" },
-  { "nombre": "ROBERTO ZAMURIA VENAGEAS" },
+  { "nombre": "ROBERTO ZAMURIA VANEGEAS" },
   {
     "familia": "FAMILIA ALVEY ZAMURIA",
     "miembros": [
@@ -69,7 +69,6 @@
       "JOSEPH ALVEY ZAMURIA"
     ]
   },
-
   {
     "familia": "FAMILIA CHAVARRIA ZAMURIA",
     "miembros": [
@@ -84,5 +83,15 @@
     "familia": "FAMILIA GARCÍA SEVILLA",
     "miembros": ["LAURA GARCÍA SEVILLA", "ISABELLA GARCÍA"]
   },
-  { "nombre": "LORENA CASTILLO" }
+  { "nombre": "LORENA CASTILLO" },
+  { "nombre": "VIRGINIA GARCIA" },
+  { "nombre": "MARIA ELENA BALLADARES" },
+  {
+    "familia": "FAMILIA VILLAGRA VANEGAS",
+    "miembros": ["CARLOS VILLAGRA", "FATIMA VANEGAS", "LUIS CARLOS VILLAGRA", "ALEXIA VILAGRA"]
+  },
+  {
+    "familia": "FAMILIA CORTÉS",
+    "miembros": ["ANA MARGARITA CORTÉS", "REINA CORTÉS"]
+  }
 ]

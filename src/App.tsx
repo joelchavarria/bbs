@@ -26,7 +26,7 @@ import { supabase, supabaseBucket } from "@/lib/supabase"
 const EVENT_START = new Date("2026-05-03T10:00:00-06:00")
 const EVENT_END = new Date("2026-05-03T13:00:00-06:00")
 const PHOTOS_OPEN_AT = new Date("2026-05-03T00:00:00-06:00")
-const RSVP_EMAIL = "joelchavarria308@gmail.com"
+const RSVP_DEADLINE = new Date("2026-04-01T00:00:00-06:00")
 const MAPS_QUERY = "https://maps.app.goo.gl/p9Pe2d78kaNzUqReA"
 const MAPS_EMBED =
   "https://www.google.com/maps?q=La+Guacamaya+Granada+La+Calzada&output=embed"
@@ -101,6 +101,10 @@ function normalize(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
 }
 
+function normalizeGroupKey(value: string) {
+  return normalize(value).replace(/\s+/g, " ").trim()
+}
+
 function getCountdown() {
   const diff = EVENT_START.getTime() - Date.now()
 
@@ -129,6 +133,20 @@ function getPhotosCountdown() {
   return { days, hours, minutes, unlocked: false }
 }
 
+function getRsvpCountdown() {
+  const diff = RSVP_DEADLINE.getTime() - Date.now()
+
+  if (diff <= 0) {
+    return { days: 0, hours: 0, minutes: 0, closed: true }
+  }
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
+  const minutes = Math.floor((diff / (1000 * 60)) % 60)
+
+  return { days, hours, minutes, closed: false }
+}
+
 function isFamiliaInvitada(entry: InvitadoRaw): entry is FamiliaInvitada {
   return "familia" in entry && "miembros" in entry
 }
@@ -139,6 +157,7 @@ function App() {
     window.location.pathname.toLowerCase() === ADMIN_PATH
   const [countdown, setCountdown] = useState(getCountdown)
   const [photosCountdown, setPhotosCountdown] = useState(getPhotosCountdown)
+  const [rsvpCountdown, setRsvpCountdown] = useState(getRsvpCountdown)
   const [currentPage, setCurrentPage] = useState(() => {
     if (typeof window === "undefined") {
       return 0
@@ -266,6 +285,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const timer = window.setInterval(
+      () => setRsvpCountdown(getRsvpCountdown()),
+      30_000,
+    )
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
     const previousRestoration = window.history.scrollRestoration
     window.history.scrollRestoration = "manual"
     window.scrollTo({ top: 0, left: 0, behavior: "auto" })
@@ -338,25 +365,8 @@ function App() {
     }
   }, [isAdminRoute, isAdminUnlocked])
 
-  const canSubmit = Boolean(selected) && (attendance === "no" || people > 0)
-
-  const emailHref = useMemo(() => {
-    if (!selected) {
-      return ""
-    }
-
-    const body = [
-      `Invitado: ${selected.nombre}`,
-      `Familia: ${selected.familia}`,
-      `Asistencia: ${attendance === "si" ? "Sí" : "No"}`,
-      `Personas: ${attendance === "si" ? people : 0}`,
-      `Mensaje: ${message || "Sin mensaje"}`,
-    ].join("\n")
-
-    const subject = `RSVP Baby Shower Lucas Joel - ${selected.nombre}`
-
-    return `mailto:${RSVP_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  }, [attendance, message, people, selected])
+  const canSubmit =
+    !rsvpCountdown.closed && Boolean(selected) && (attendance === "no" || people > 0)
 
   const confirmacionesSi = useMemo(
     () => confirmaciones.filter((row) => row.asistencia === "si"),
@@ -535,6 +545,12 @@ function App() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
+    if (rsvpCountdown.closed) {
+      setSubmitMessage("Las confirmaciones cerraron el 1 de abril de 2026.")
+      setSubmitStatus("error")
+      return
+    }
+
     if (!selected) {
       return
     }
@@ -543,13 +559,19 @@ function App() {
     setSubmitMessage("")
     setSubmitStatus("idle")
 
+    const normalizedPeople =
+      attendance === "si"
+        ? Math.max(1, Math.min(selected.invitados, Math.round(Number(people) || 1)))
+        : 0
+    const normalizedMessage = message.trim()
+
     const payload: RsvpPayload = {
       invitadoId: selected.id,
       nombre: selected.nombre,
       familia: selected.familia,
       asistencia: attendance,
-      personas: attendance === "si" ? people : 0,
-      mensaje: message.trim(),
+      personas: normalizedPeople,
+      mensaje: normalizedMessage,
       creadoEn: new Date().toISOString(),
       userAgent: navigator.userAgent,
     }
@@ -557,7 +579,7 @@ function App() {
       if (!supabase) {
         throw new Error("Supabase no configurado")
       }
-      const groupKey = normalize(
+      const groupKey = normalizeGroupKey(
         selected.familia === "INVITADO INDIVIDUAL"
           ? `individual:${selected.nombre}`
           : `familia:${selected.familia}`,
@@ -590,10 +612,18 @@ function App() {
     } catch (error) {
       const isMissingSupabase =
         error instanceof Error && error.message.includes("Supabase no configurado")
+      const isPermissionError =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof (error as { code?: unknown }).code === "string" &&
+        (error as { code: string }).code === "42501"
       const detail = error instanceof Error ? ` Detalle: ${error.message}` : ""
       setSubmitMessage(
         isMissingSupabase
           ? "Falta configurar Supabase para guardar confirmaciones."
+          : isPermissionError
+            ? "No se pudo guardar por permisos en Supabase. Aplica la migración de UPDATE en la tabla confirmaciones."
           : `No se pudo guardar la reserva en este momento.${detail}`,
       )
       setSubmitStatus("error")
@@ -1420,6 +1450,9 @@ function App() {
                       Cupo máximo: {selected.invitados}{" "}
                       {selected.invitados === 1 ? "persona" : "personas"}
                     </p>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                      No niños
+                    </p>
                     {selected.familia !== "INVITADO INDIVIDUAL" && (
                       <div className="mt-3">
                         <p className="text-xs font-bold uppercase tracking-[0.12em] text-amber-500">
@@ -1561,25 +1594,13 @@ function App() {
 
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" disabled={!canSubmit || isSaving}>
-                      {isSaving ? "Guardando..." : "Guardar confirmación"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={!selected}
-                      onClick={() => {
-                        if (emailHref) {
-                          window.location.href = emailHref
-                        }
-                      }}
-                    >
-                      Enviar por correo
+                      {rsvpCountdown.closed
+                        ? "Confirmaciones cerradas"
+                        : isSaving
+                          ? "Guardando..."
+                          : "Guardar confirmación"}
                     </Button>
                   </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    Tu confirmación se guarda directamente en nuestra base de datos.
-                  </p>
                   {submitMessage && (
                     <p
                       className={`rounded-xl px-3 py-2 text-sm font-semibold ${
